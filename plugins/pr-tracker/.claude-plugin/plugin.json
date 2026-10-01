@@ -1,0 +1,9 @@
+{
+  "name": "pr-tracker",
+  "version": "0.1.0",
+  "description": "Band above the prompt listing GitHub PRs referenced in this session, with live state and checks",
+  "author": { "name": "Samuel Birocchi", "url": "https://github.com/samuelbirocchi" },
+  "repository": "https://github.com/samuelbirocchi/ai-tools",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

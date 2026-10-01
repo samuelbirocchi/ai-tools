@@ -1,0 +1,17 @@
+{
+  "name": "samuelbirocchi",
+  "owner": {
+    "name": "Samuel Birocchi",
+    "url": "https://github.com/samuelbirocchi"
+  },
+  "description": "Samuel Birocchi's AI coding tools: skills, commands, agents and mods.",
+  "plugins": [
+    {
+      "name": "pr-tracker",
+      "source": "./plugins/pr-tracker",
+      "description": "Band above the prompt listing GitHub PRs referenced in the session, with live state, checks and review status.",
+      "category": "productivity",
+      "keywords": ["github", "pull-requests", "mod", "status"]
+    }
+  ]
+}
