@@ -44,7 +44,12 @@ const GH: Record<string, object | null> = {
 
 test('lists referenced PRs with gh state, drops ones gh cannot resolve', async ($, on) => {
   on('session.messages', () => ({ value: MESSAGES }) as never)
+  const opened: string[][] = []
   on('process.run', (_$, e) => {
+    if (e.argv[0] === 'open') {
+      opened.push([...e.argv])
+      return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+    }
     const url = e.argv[3] ?? ''
     const pr = GH[url]
     return {
@@ -56,7 +61,7 @@ test('lists referenced PRs with gh state, drops ones gh cannot resolve', async (
   on('command.run', () => ({ text: 'unhandled' }))
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
-    return <Text>engine</Text>
+    return <Text>other mod band</Text>
   })
   mock.clock(on)
 
@@ -74,11 +79,17 @@ test('lists referenced PRs with gh state, drops ones gh cannot resolve', async (
       component: 'AbovePrompt',
       props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100 },
     } as never)
-    expect(await ui.find({ type: 'Link', text: 'api#12' })).toBeDefined()
-    expect(await ui.find({ type: 'Link', text: 'infra#3' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: 'api#12' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', text: 'infra#3' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Fix login \[approved\]/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'other mod band' })).toBeDefined()
+    await ui.press({ key: 'open:https://github.com/acme/api/pull/12' })
     await ui.unmount()
   }
+  expect(opened).toEqual([
+    ['open', 'https://github.com/acme/api/pull/12'],
+    ['open', 'https://github.com/acme/api/pull/12'],
+  ])
 
   await $.command.run({ command: 'prs', args: '' } as never)
   const hidden = await $.ui.mount({
@@ -87,5 +98,5 @@ test('lists referenced PRs with gh state, drops ones gh cannot resolve', async (
     component: 'AbovePrompt',
     props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100 },
   } as never)
-  expect(await hidden.find({ type: 'Link' })).toBeUndefined()
+  expect(await hidden.find({ type: 'Button' })).toBeUndefined()
 })

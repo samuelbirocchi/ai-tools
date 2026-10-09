@@ -126,6 +126,13 @@ const REVIEW: Record<string, string> = {
   REVIEW_REQUIRED: 'review',
 }
 
+async function openUrl($: Engine, url: string) {
+  const opened = await $.process.run(['open', url]).catch(() => null)
+  if (opened?.exitCode === 0) return
+  const fallback = await $.process.run(['xdg-open', url]).catch(() => null)
+  if (fallback?.exitCode !== 0) $.ui.toast(`Could not open ${url}`)
+}
+
 const rank = (p: Pr) => (p.state === 'MERGED' || p.state === 'CLOSED' ? 1 : 0)
 
 export const register: Register = on => {
@@ -165,14 +172,15 @@ export const register: Register = on => {
     const list = await read($, prs)
     if (e.props.hasSurvey || list.length === 0 || (await read($, isHidden))) return next(e)
 
-    const { Box, Link, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const width = e.props.bodyColumns ?? e.viewport?.columns ?? 100
     const sorted = [...list].sort((a, b) => rank(a) - rank(b))
     const shown = sorted.slice(0, MAX_ROWS)
+    const below = await next(e)
 
     return (
       <Box flexDirection="column">
-        {shown.map(p => {
+        {shown.map((p, i) => {
           const [sg, sc] = STATE_GLYPH[p.state]
           const [cg, cc] = CHECK_GLYPH[p.checks]
           const isDone = rank(p) === 1
@@ -181,7 +189,14 @@ export const register: Register = on => {
             <Box key={p.url} flexDirection="row" width={width}>
               <Text color={sc}>{sg} </Text>
               <Text color={cc}>{cg} </Text>
-              <Link href={p.url} label={label} />
+              <Button
+                key={`open:${p.url}`}
+                label={label}
+                plain
+                hotkey={String(i + 1)}
+                hover={{ underline: true }}
+                onPress={() => void openUrl($, p.url)}
+              />
               <Text dimColor={isDone} wrap="truncate-end">
                 {' '}
                 {p.title || '…'}
@@ -191,6 +206,7 @@ export const register: Register = on => {
           )
         })}
         {sorted.length > MAX_ROWS && <Text dimColor>+{sorted.length - MAX_ROWS} more · /prs</Text>}
+        {below}
       </Box>
     )
   })
