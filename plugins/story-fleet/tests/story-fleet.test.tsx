@@ -10,6 +10,7 @@ const FLEET = {
       agents: [
         { name: 'tech-1', role: 'dev', status: 'working', title: 'TECH-1 build' },
         { name: 'deploy-5-api', role: 'deploy', status: 'blocked', title: '' },
+        { name: 'babysit-5-api', role: 'babysit', status: 'idle', title: '', waiting: 'human review on api#5' },
       ],
     },
   ],
@@ -43,7 +44,7 @@ test('the pane lists the plan session stories and focuses an agent on press', as
   })
   on('process.run', (_, e) => {
     runs.push([...e.argv])
-    return { value: { exitCode: 0, stdout: JSON.stringify(FLEET), stderr: '' } }
+    return { value: { exitCode: 0, stdout: JSON.stringify(FLEET), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   const presses: string[] = []
@@ -68,6 +69,8 @@ test('the pane lists the plan session stories and focuses an agent on press', as
   expect(opened).toEqual(['story-fleet'])
   expect(await ui!.find({ type: 'Text', text: /TECH-1 build/ })).toBeDefined()
   expect((await ui!.find({ type: 'Text', text: /▲/ }))?.text).toBe('▲')
+  expect((await ui!.find({ type: 'Text', text: /waiting on/ }))?.text).toBe('  waiting on: human review on api#5')
+  expect(await ui!.findAll({ type: 'Text', text: /waiting on/ })).toHaveLength(1)
 
   await ui!.press({ key: 'deploy-5-api' })
   expect({ presses, runs: runs.slice(1) }).toEqual({
@@ -77,13 +80,39 @@ test('the pane lists the plan session stories and focuses an agent on press', as
   await ui!.unmount()
 })
 
+test('a focus that cannot launch shows its error in the pane', async ($, on) => {
+  on('command.register', () => ({ value: { command: 'stories' } }))
+  on('env.get', (_, e) => ({ value: e.name === 'HERDR_ENV' ? '1' : undefined }))
+  on('session.id', () => ({ value: 'sid-1' }))
+  on('clock.every', () => ({ deny: 'no polling in this test' }))
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('process.run', (_, e) =>
+    e.argv[0] === 'herdr'
+      ? { deny: 'herdr not found' }
+      : { value: { exitCode: 0, stdout: JSON.stringify(FLEET), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } },
+  )
+  on('ui.press', (_, e) => ({ element: e.element }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  let ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  for (let attempt = 0; attempt < 20 && !(await ui.find({ type: 'Text', text: /TECH-1$/ })); attempt++) {
+    await ui.unmount()
+    ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  }
+  await ui.press({ key: 'tech-1' })
+  expect((await ui.find({ type: 'Text', text: /^focus tech-1:/ }))?.text).toMatch(/herdr not found/)
+  await ui.unmount()
+})
+
 test('outside Herdr nothing polls and nothing opens', async ($, on) => {
   const runs: string[][] = []
   on('command.register', () => ({ value: { command: 'stories' } }))
   on('env.get', () => ({ value: undefined }))
   on('process.run', (_, e) => {
     runs.push([...e.argv])
-    return { value: { exitCode: 0, stdout: '{}', stderr: '' } }
+    return { value: { exitCode: 0, stdout: '{}', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
 

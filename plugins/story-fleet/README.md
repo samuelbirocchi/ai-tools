@@ -9,12 +9,14 @@ plan session: Ads Plan
 TECH-12
 ● tech-12  TECH-12 implementation
 ○ babysit-66-api  babysit
+  waiting on: human review on api#66, next wake: pr-wait-event exit
 ✓ deploy-66-api  deploy
 ```
 
 - One block per story, with its dev agent first, then its babysit and deploy helpers.
 - Status marks: `●` working, `▲` blocked, `○` idle, `✓` done.
 - A dev row shows the agent's terminal title, which Claude Code sets to its current task.
+- An idle or done agent also shows the last `Waiting on:` line of its transcript (for example `human review on api#5`), so an agent that waits on a person or a deploy doesn't look finished.
 - Pressing a row runs `herdr agent focus <name>` and jumps to that agent's pane.
 - The pane opens by itself, once per session, when the first story appears. `/stories` opens it by hand.
 - It refreshes every 5 s, and only in sessions running inside Herdr (`HERDR_ENV=1`).

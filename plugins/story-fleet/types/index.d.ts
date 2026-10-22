@@ -1,4 +1,4 @@
-export type FleetAgent = { name: string; role: string; status: string; title: string }
+export type FleetAgent = { name: string; role: string; status: string; title: string; waiting?: string }
 export type FleetStory = { key: string; workspace: string; agents: FleetAgent[] }
 export type Fleet = { name: string | null; herdr: boolean; stories: FleetStory[]; error?: string }
 

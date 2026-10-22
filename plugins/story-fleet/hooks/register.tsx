@@ -30,7 +30,18 @@ export const register: Register = on => {
     const sessionId = await $.session.id()
     const script = `${$.plugin.root}/scripts/herdr-plan-fleet.py`
 
+    let isRefreshing = false
     const refresh = async () => {
+      if (isRefreshing) return
+      isRefreshing = true
+      try {
+        await refreshOnce()
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    const refreshOnce = async () => {
       let latest: Fleet
       try {
         const { exitCode, stdout, stderr } = await $.process.run(['python3', script, sessionId], { timeoutMs: 15000 })
@@ -59,8 +70,14 @@ export const register: Register = on => {
   })
 
   on('ui.press', { requestId: PANE }, async ($, e, next) => {
-    const { exitCode, stderr } = await $.process.run(['herdr', 'agent', 'focus', e.element])
-    if (exitCode !== 0) await update($, fleet, current => ({ ...current, error: `focus ${e.element}: ${stderr.trim().slice(0, 160)}` }))
+    const showError = (detail: string) =>
+      update($, fleet, current => ({ ...current, error: `focus ${e.element}: ${detail.slice(0, 160)}` }))
+    try {
+      const { exitCode, stderr } = await $.process.run(['herdr', 'agent', 'focus', e.element])
+      if (exitCode !== 0) await showError(stderr.trim())
+    } catch (error) {
+      await showError(String(error))
+    }
 
     return next(e)
   })
@@ -82,10 +99,13 @@ export const register: Register = on => {
             {story.agents.map(agent => {
               const status = statusOf(agent)
               return (
-                <Button key={agent.name} plain onPress={() => {}}>
-                  <Text color={status.color}>{status.mark}</Text> {agent.name}{' '}
-                  <Text dimColor>{agent.role === 'dev' ? agent.title : agent.role}</Text>
-                </Button>
+                <Box key={agent.name} flexDirection="column">
+                  <Button key={agent.name} plain onPress={() => {}}>
+                    <Text color={status.color}>{status.mark}</Text> {agent.name}{' '}
+                    <Text dimColor>{agent.role === 'dev' ? agent.title : agent.role}</Text>
+                  </Button>
+                  {agent.waiting && <Text color="yellow">  waiting on: {agent.waiting}</Text>}
+                </Box>
               )
             })}
           </Box>
