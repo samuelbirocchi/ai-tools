@@ -1,0 +1,96 @@
+import { atom, read, update } from 'claude-code'
+import type { Register } from 'claude-code'
+
+import type { Fleet, FleetAgent } from '../types'
+
+const PANE = 'story-fleet'
+const TITLE = 'Stories'
+const POLL_MS = 5000
+const EMPTY: Fleet = { name: null, herdr: true, stories: [] }
+const fleet = atom({ plugin: 'story-fleet', key: 'fleet' } as const, EMPTY)
+const autoOpened = atom({ plugin: 'story-fleet', key: 'autoOpened' } as const, false)
+
+const STATUS: Record<string, { mark: string; color?: string }> = {
+  working: { mark: '●', color: 'blue' },
+  blocked: { mark: '▲', color: 'red' },
+  idle: { mark: '○' },
+  done: { mark: '✓', color: 'green' },
+}
+
+const statusOf = (agent: FleetAgent) => STATUS[agent.status] ?? { mark: '?' }
+
+export const register: Register = on => {
+  on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: 'stories',
+      description: 'Show the Herdr story agents this session started, in a pane',
+    })
+    if ((await $.env.get('HERDR_ENV')) !== '1') return next(e)
+
+    const sessionId = await $.session.id()
+    const script = `${$.plugin.root}/scripts/herdr-plan-fleet.py`
+
+    const refresh = async () => {
+      let latest: Fleet
+      try {
+        const { exitCode, stdout, stderr } = await $.process.run(['python3', script, sessionId], { timeoutMs: 15000 })
+        latest = exitCode === 0 ? JSON.parse(stdout) : { ...EMPTY, error: stderr.trim().slice(0, 200) }
+      } catch (error) {
+        latest = { ...EMPTY, error: String(error).slice(0, 200) }
+      }
+      await update($, fleet, () => latest)
+      if (latest.stories.length > 0 && !(await read($, autoOpened))) {
+        await update($, autoOpened, () => true)
+        const isUp = (await $.ui.panes()).some(pane => pane.id === PANE)
+        if (!isUp) void $.ui.open({ id: PANE, title: TITLE })
+      }
+    }
+
+    void refresh()
+    $.clock.every(POLL_MS, () => void refresh())
+
+    return next(e)
+  })
+
+  on('command.run', { command: 'stories' }, async $ => {
+    const opened = await $.ui.open({ id: PANE, title: TITLE })
+
+    return { text: opened.isPlaced ? 'Stories pane opened.' : `Stories pane waits: ${opened.reason}` }
+  })
+
+  on('ui.press', { requestId: PANE }, async ($, e, next) => {
+    const { exitCode, stderr } = await $.process.run(['herdr', 'agent', 'focus', e.element])
+    if (exitCode !== 0) await update($, fleet, current => ({ ...current, error: `focus ${e.element}: ${stderr.trim().slice(0, 160)}` }))
+
+    return next(e)
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const current = await read($, fleet)
+
+    return (
+      <Box flexDirection="column">
+        <Text dimColor>{current.name ? `plan session: ${current.name}` : 'not a named plan session'}</Text>
+        {current.error && <Text color="red">{current.error}</Text>}
+        {!current.herdr && <Text color="red">herdr agent list failed</Text>}
+        {current.stories.length === 0 && <Text dimColor>No stories started from this session.</Text>}
+        {current.stories.map(story => (
+          <Box key={story.workspace} flexDirection="column" marginTop={1}>
+            <Text bold>{story.key}</Text>
+            {story.agents.length === 0 && <Text dimColor>  workspace gone</Text>}
+            {story.agents.map(agent => {
+              const status = statusOf(agent)
+              return (
+                <Button key={agent.name} plain onPress={() => {}}>
+                  <Text color={status.color}>{status.mark}</Text> {agent.name}{' '}
+                  <Text dimColor>{agent.role === 'dev' ? agent.title : agent.role}</Text>
+                </Button>
+              )
+            })}
+          </Box>
+        ))}
+      </Box>
+    )
+  })
+}

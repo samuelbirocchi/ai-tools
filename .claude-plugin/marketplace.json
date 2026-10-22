@@ -12,6 +12,13 @@
       "description": "Band above the prompt listing GitHub PRs referenced in the session, with live state, checks and review status.",
       "category": "productivity",
       "keywords": ["github", "pull-requests", "mod", "status"]
+    },
+    {
+      "name": "story-fleet",
+      "source": "./plugins/story-fleet",
+      "description": "Pane beside a Herdr plan session listing the story agents it started, with live status; press a row to focus that agent.",
+      "category": "productivity",
+      "keywords": ["herdr", "multi-agent", "mod", "pane"]
     }
   ]
 }
