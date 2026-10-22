@@ -47,12 +47,15 @@ agents/                           subagent definitions
 | Plugin | What it does |
 | --- | --- |
 | [`pr-tracker`](plugins/pr-tracker) | Band above the prompt listing every GitHub PR referenced in the session (URLs, `owner/repo#N`, GitHub MCP calls), with state, CI checks and review status via `gh`. `/prs` toggles it, `/prs list` lists all, `/prs refresh` re-fetches. Needs `gh` authenticated and `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. |
+| [`story-fleet`](plugins/story-fleet) | Pane beside a [Herdr](https://herdr.dev) plan session listing the story agents it started (dev, babysit and deploy helpers) with live status and current task. Pressing a row focuses that agent; `/stories` opens it. Needs Herdr, Python 3 and `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. |
 
 ## Develop
 
 ```bash
 claude plugin validate plugins/pr-tracker
 claude plugin test plugins/pr-tracker
+claude plugin validate plugins/story-fleet
+claude plugin test plugins/story-fleet
 ```
 
 ## License

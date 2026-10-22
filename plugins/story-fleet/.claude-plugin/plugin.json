@@ -1,0 +1,9 @@
+{
+  "name": "story-fleet",
+  "version": "0.1.0",
+  "description": "Pane beside a Herdr plan session listing the story agents it started, with live status; press a row to focus that agent",
+  "author": { "name": "Samuel Birocchi", "url": "https://github.com/samuelbirocchi" },
+  "repository": "https://github.com/samuelbirocchi/ai-tools",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
