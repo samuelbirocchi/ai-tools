@@ -25,17 +25,29 @@ def session_name(session_id):
     return None
 
 
-def stories_for(name):
-    stories = {}
+def story_members(name):
+    plan_spaces = {}
+    members = {}
     for path in glob.glob(os.path.join(HOME, ".claude", "state", "herdr-story", "*.json")):
         try:
             with open(path) as f:
                 state = json.load(f)
         except (OSError, ValueError):
             continue
-        if state.get("report_to") == name and state.get("workspace"):
-            stories.setdefault(state["workspace"], state.get("key") or "?")
-    return stories
+        if not state.get("space") or not state.get("terminal"):
+            continue
+        members.setdefault(state["space"], []).append(state)
+        if state.get("report_to") == name:
+            plan_spaces.setdefault(state["space"], state.get("key") or "?")
+    return {space: (key, members[space]) for space, key in plan_spaces.items()}
+
+
+def session_of(pid):
+    try:
+        with open(os.path.join(HOME, ".claude", "sessions", f"{pid}.json")) as f:
+            return json.load(f).get("sessionId")
+    except (OSError, ValueError):
+        return None
 
 
 def waiting_on(session_id):
@@ -64,31 +76,42 @@ def waiting_on(session_id):
     return ""
 
 
-def herdr_agents():
+def hc_json(*args):
     try:
-        out = subprocess.run(["herdr", "agent", "list"], capture_output=True, text=True, timeout=10).stdout
-        return json.loads(out)["result"]["agents"]
+        out = subprocess.run(["hc", *args], capture_output=True, text=True, timeout=10)
+        return json.loads(out.stdout) if out.returncode == 0 else None
     except Exception:
         return None
 
 
-def fleet(name, agents):
-    stories = stories_for(name)
+def live_terminals():
+    listing = hc_json("ls", "--json")
+    return None if listing is None else {t["address"]: t for t in listing.get("terminals", [])}
+
+
+def agent_row(member, live):
+    terminal = live.get(member["terminal"])
+    if terminal is None:
+        return {"name": member.get("agent") or member["terminal"], "terminal": member["terminal"], "role": member.get("role") or "?", "status": "gone", "title": "", "waiting": ""}
+    status = (terminal.get("status") or {}).get("state") or "?"
+    detail = hc_json("get", member["terminal"]) or {}
+    pid = (detail.get("foreground") or {}).get("pid")
+    return {
+        "name": member.get("agent") or member["terminal"],
+        "terminal": member["terminal"],
+        "role": member.get("role") or "?",
+        "status": status,
+        "title": (detail.get("title") or "").strip(),
+        "waiting": waiting_on(session_of(pid)) if status in WAITING_STATUSES and pid else "",
+    }
+
+
+def fleet(name, live):
     rows = []
-    for workspace, key in sorted(stories.items(), key=lambda item: item[1]):
-        members = [a for a in agents if a.get("workspace_id") == workspace and a.get("name")]
-        members.sort(key=lambda a: (ROLE_ORDER.get((a.get("tokens") or {}).get("role"), 9), a["name"]))
-        rows.append({
-            "key": key,
-            "workspace": workspace,
-            "agents": [{
-                "name": a["name"],
-                "role": (a.get("tokens") or {}).get("role") or "?",
-                "status": a.get("agent_status") or "?",
-                "title": (a.get("terminal_title_stripped") or "").strip(),
-                "waiting": waiting_on((a.get("agent_session") or {}).get("value")) if a.get("agent_status") in WAITING_STATUSES else "",
-            } for a in members],
-        })
+    for space, (key, members) in sorted(story_members(name).items(), key=lambda item: item[1][0]):
+        agents = [agent_row(m, live) for m in members]
+        agents.sort(key=lambda a: (ROLE_ORDER.get(a["role"], 9), a["name"]))
+        rows.append({"key": key, "space": space, "agents": agents})
     return rows
 
 
@@ -100,11 +123,11 @@ def main():
         name = session_name(args[0])
     else:
         sys.exit("usage: herdr-plan-fleet.py <session-id> | --name <session name>")
-    agents = herdr_agents()
+    live = live_terminals()
     print(json.dumps({
         "name": name,
-        "herdr": agents is not None,
-        "stories": fleet(name, agents or []) if name else [],
+        "hc": live is not None,
+        "stories": fleet(name, live or {}) if name else [],
     }))
 
 
