@@ -1,6 +1,6 @@
 # story-fleet
 
-A Claude Code mod for [Herdr](https://herdr.dev) multi-agent work. It draws a **Stories** pane beside a plan session. The pane lists every story agent that the session started, and their live status.
+A Claude Code mod for [Herdr](https://herdr.dev) multi-agent work, on herdr-core (`hc`) and the Herdr app (`herdr-app`). It draws a **Stories** pane beside a plan session. The pane lists every story agent that the session started, and their live status.
 
 ```
 Stories
@@ -14,28 +14,28 @@ TECH-12
 ```
 
 - One block per story, with its dev agent first, then its babysit and deploy helpers.
-- Status marks: `●` working, `▲` blocked, `○` idle, `✓` done.
-- A dev row shows the agent's terminal title, which Claude Code sets to its current task.
+- Status marks: `●` working, `▲` blocked, `○` idle, `✓` done, `✗` error, `·` terminal gone. The status is the one the agent reported to `hc` (OSC 7501).
+- A dev row shows the terminal title from `hc get`, which Claude Code sets to its current task.
 - An idle or done agent also shows the last `Waiting on:` line of its transcript (for example `human review on api#5`), so an agent that waits on a person or a deploy doesn't look finished.
-- Pressing a row runs `herdr agent focus <name>` and jumps to that agent's pane.
+- Pressing a row runs `herdr-app do agent.focus --terminal <address>` and jumps to that agent.
 - The pane opens by itself, once per session, when the first story appears. `/stories` opens it by hand.
-- It refreshes every 5 s, and only in sessions running inside Herdr (`HERDR_ENV=1`).
+- It refreshes every 5 s, and only in sessions running under `hc` (`HC_TERMINAL_ID` set).
 
 ## Where the stories come from
 
-The mod reads one JSON file per story pane from `~/.claude/state/herdr-story/<pane id, ":" replaced by "_">.json`:
+The mod reads one JSON file per story terminal from `~/.claude/state/herdr-story/<terminal address>.json`:
 
 ```json
-{ "pane": "w6P:p1", "workspace": "w6P", "agent": "tech-12", "key": "TECH-12", "report_to": "Ads Plan" }
+{ "terminal": "t14", "space": "sp8920...", "agent": "tech-12", "key": "TECH-12", "report_to": "Ads Plan", "role": "dev" }
 ```
 
-`report_to` is the plan session's name, as Claude Code's `ListAgents` shows it. The mod shows a story when `report_to` matches the name of the session it runs in. It then lists every Herdr agent in that story's workspace. Whatever starts your story agents must write these files: in my setup, a `ht <repo> <KEY> <plan-url> --report-to '<session>'` launcher writes them.
+`report_to` is the plan session's name, as Claude Code's `ListAgents` shows it. The mod shows a story when `report_to` matches the name of the session it runs in. It then lists every state file with the same `space` (the dev session and its babysit and deploy helpers) and looks each terminal up with `hc ls --json` and `hc get`. A terminal that `hc` no longer lists shows as gone. Whatever starts your story agents must write these files: in my setup, a `ht <repo> <KEY> <plan-url> --report-to '<session>'` launcher writes them.
 
 The data comes from `scripts/herdr-plan-fleet.py <session id>` (or `--name <session name>`), which prints JSON. You can run it by hand to debug.
 
 ## Requirements
 
-- Herdr 0.9.5 or newer, with its CLI on `PATH`.
+- `hc` (herdr-core) and `herdr-app` on `PATH`.
 - Python 3.
 - `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
 
