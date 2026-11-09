@@ -91,6 +91,22 @@ test('lists referenced PRs with gh state, drops ones gh cannot resolve', async (
     ['open', 'https://github.com/acme/api/pull/12'],
   ])
 
+  const inChrome = ['open', '-a', 'Google Chrome', 'https://github.com/acme/infra/pull/3', 'https://github.com/acme/api/pull/12']
+  const band = await $.ui.mount({
+    plugin: 'pr-tracker',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100 },
+  } as never)
+  expect(await band.find({ type: 'Button', text: 'Open 2 open PRs in Chrome' })).toBeDefined()
+  await band.press({ key: 'open-all' })
+  await band.unmount()
+  expect(opened[2]).toEqual(inChrome)
+
+  const cmd = await $.command.run({ command: 'prs', args: 'open' } as never)
+  expect((cmd as { text: string }).text).toBe('Opened 2 open PRs in Google Chrome.')
+  expect(opened[3]).toEqual(inChrome)
+
   await $.command.run({ command: 'prs', args: '' } as never)
   const hidden = await $.ui.mount({
     plugin: 'pr-tracker',
