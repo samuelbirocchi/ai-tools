@@ -133,12 +133,18 @@ async function openUrl($: Engine, url: string) {
   if (fallback?.exitCode !== 0) $.ui.toast(`Could not open ${url}`)
 }
 
+async function openInChrome($: Engine, urls: string[]) {
+  const opened = await $.process.run(['open', '-a', 'Google Chrome', ...urls]).catch(() => null)
+  if (opened?.exitCode !== 0) $.ui.toast('Could not open the PRs in Google Chrome')
+}
+
 const rank = (p: Pr) => (p.state === 'MERGED' || p.state === 'CLOSED' ? 1 : 0)
+const isLive = (p: Pr) => p.state === 'OPEN' || p.state === 'DRAFT'
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    await $.command.register({ name: 'prs', description: 'Toggle the PR tracker band (/prs refresh to re-fetch)' })
+    await $.command.register({ name: 'prs', description: 'Toggle the PR tracker band (/prs refresh to re-fetch, /prs open to open the open PRs in Chrome)' })
     $.clock.every(POLL_MS, () => void refresh($, true))
     await sync($)
     return started
@@ -155,6 +161,11 @@ export const register: Register = on => {
     if (arg === 'refresh') {
       await sync($)
       await refresh($, false)
+    } else if (arg === 'open') {
+      const live = (await read($, prs)).filter(isLive)
+      if (live.length === 0) return { text: 'No open PRs to open.' }
+      await openInChrome($, live.map(p => p.url))
+      return { text: `Opened ${live.length} open PRs in Google Chrome.` }
     } else if (arg !== 'list') {
       const hidden = await update($, isHidden, h => !h)
       return { text: hidden ? 'PR band hidden.' : 'PR band shown.' }
@@ -176,6 +187,7 @@ export const register: Register = on => {
     const width = e.props.bodyColumns ?? e.viewport?.columns ?? 100
     const sorted = [...list].sort((a, b) => rank(a) - rank(b))
     const shown = sorted.slice(0, MAX_ROWS)
+    const live = sorted.filter(isLive)
     const below = await next(e)
 
     return (
@@ -206,6 +218,18 @@ export const register: Register = on => {
           )
         })}
         {sorted.length > MAX_ROWS && <Text dimColor>+{sorted.length - MAX_ROWS} more · /prs</Text>}
+        {live.length > 0 && (
+          <Box key="open-all-row" flexDirection="row" width={width}>
+            <Button
+              key="open-all"
+              label={`Open ${live.length} open PR${live.length === 1 ? '' : 's'} in Chrome`}
+              plain
+              hotkey="o"
+              hover={{ underline: true }}
+              onPress={() => void openInChrome($, live.map(p => p.url))}
+            />
+          </Box>
+        )}
         {below}
       </Box>
     )
